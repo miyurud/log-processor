@@ -19,11 +19,7 @@
 package org.wso2.siddhi.common.benchmarks.http.window;
 
 import org.apache.log4j.Logger;
-import org.wso2.siddhi.core.ExecutionPlanRuntime;
-import org.wso2.siddhi.core.SiddhiManager;
-import org.wso2.siddhi.core.event.Event;
-import org.wso2.siddhi.core.stream.input.InputHandler;
-import org.wso2.siddhi.core.stream.output.StreamCallback;
+//import org.wso2.siddhi.core.SiddhiManager;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -70,82 +66,82 @@ public class HTTPLogProcessorWindowMicroBenchmark {
             log.error("Error while creating statistics output file, " + e.getMessage(), e);
         }
 
-        SiddhiManager siddhiManager = new SiddhiManager();
-        String inputStream = "define stream inputStream ( iij_timestamp long, ip string, timestamp long, zone int, "
-                + "cik long, accession string, extension string, code int, size long, idx int, norefer int, noagent "
-                + "int, find int, crawler int, browser string);";
-        String outputStream = "define stream outputStream ( iij_timestamp long, ip string, timestamp long, zone int, "
-                + "cik long, accession string, extension string, code int, size long, idx int, norefer int, noagent "
-                + "int, find int, crawler int, browser string);";
-        String query = "@info(name = 'query1') from inputStream " +
-                "select iij_timestamp, ip, timestamp, zone, cik, accession, extension, code, size, idx, norefer, "
-                + "noagent, find, crawler, browser insert into outputStream;\";";
+        //SiddhiManager siddhiManager = new SiddhiManager();
+//        String inputStream = "define stream inputStream ( iij_timestamp long, ip string, timestamp long, zone int, "
+//                + "cik long, accession string, extension string, code int, size long, idx int, norefer int, noagent "
+//                + "int, find int, crawler int, browser string);";
+//        String outputStream = "define stream outputStream ( iij_timestamp long, ip string, timestamp long, zone int, "
+//                + "cik long, accession string, extension string, code int, size long, idx int, norefer int, noagent "
+//                + "int, find int, crawler int, browser string);";
+//        String query = "@info(name = 'query1') from inputStream " +
+//                "select iij_timestamp, ip, timestamp, zone, cik, accession, extension, code, size, idx, norefer, "
+//                + "noagent, find, crawler, browser insert into outputStream;\";";
 
-        ExecutionPlanRuntime executionPlanRuntime =
-                siddhiManager.createExecutionPlanRuntime(inputStream + outputStream + query);
-        InputHandler inputHandler = executionPlanRuntime.getInputHandler("inputStream");
-        DataLoader dataLoader = new DataLoader(inputHandler);
-        dataLoader.start();
-
-        executionPlanRuntime.addCallback("outputStream", new StreamCallback() {
-
-            @Override
-            public void receive(Event[] events) {
-                for (Event evt : events) {
-                    long currentTime = System.currentTimeMillis();
-
-                    if (firstTupleTime == -1) {
-                        firstTupleTime = currentTime;
-                    }
-
-                    long iijTimestamp = Long.parseLong(evt.getData()[0].toString());
-
-                    try {
-                        eventCount++;
-                        eventCountTotal++;
-                        timeSpent += (currentTime - iijTimestamp);
-
-                        if (eventCount % RECORD_WINDOW == 0) {
-                            totalTimeSpent += timeSpent;
-                            long value = currentTime - startTime;
-
-                            if (value == 0) {
-                                value++;
-                            }
-
-                            if (!flag) {
-                                flag = true;
-                                fstream.write("Id, Throughput in this window (events/second), Entire throughput " +
-                                                      "for the run (events/second), Total elapsed time(s), Average "
-                                                      + "latency "
-                                                      +
-                                                      "per event (ms), Entire Average latency per event (ms), Total "
-                                                      + "number"
-                                                      + " of "
-                                                      +
-                                                      "events received (non-atomic)");
-                                fstream.write("\r\n");
-                            }
-
-                            System.out.print(".");
-                            fstream.write(
-                                    (eventCountTotal / RECORD_WINDOW) + "," + ((eventCount * 1000) / value) + "," +
-                                            ((eventCountTotal * 1000) / (currentTime - veryFirstTime)) + "," +
-                                            ((currentTime - veryFirstTime) / 1000f) + "," + (timeSpent * 1.0
-                                            / eventCount) +
-                                            "," + ((totalTimeSpent * 1.0) / eventCountTotal) + "," + eventCountTotal);
-                            fstream.write("\r\n");
-                            fstream.flush();
-                            startTime = System.currentTimeMillis();
-                            eventCount = 0;
-                            timeSpent = 0;
-                        }
-                    } catch (Exception e) {
-                        log.error("Error while consuming event on incrementStream2, " + e.getMessage(), e);
-                    }
-                }
-            }
-        });
+//        ExecutionPlanRuntime executionPlanRuntime =
+//                siddhiManager.createExecutionPlanRuntime(inputStream + outputStream + query);
+//        InputHandler inputHandler = executionPlanRuntime.getInputHandler("inputStream");
+//        JSONDataLoader dataLoader = new JSONDataLoader(inputHandler);
+//        dataLoader.start();
+//
+//        executionPlanRuntime.addCallback("outputStream", new StreamCallback() {
+//
+//            @Override
+//            public void receive(Event[] events) {
+//                for (Event evt : events) {
+//                    long currentTime = System.currentTimeMillis();
+//
+//                    if (firstTupleTime == -1) {
+//                        firstTupleTime = currentTime;
+//                    }
+//
+//                    long iijTimestamp = Long.parseLong(evt.getData()[0].toString());
+//
+//                    try {
+//                        eventCount++;
+//                        eventCountTotal++;
+//                        timeSpent += (currentTime - iijTimestamp);
+//
+//                        if (eventCount % RECORD_WINDOW == 0) {
+//                            totalTimeSpent += timeSpent;
+//                            long value = currentTime - startTime;
+//
+//                            if (value == 0) {
+//                                value++;
+//                            }
+//
+//                            if (!flag) {
+//                                flag = true;
+//                                fstream.write("Id, Throughput in this window (events/second), Entire throughput " +
+//                                                      "for the run (events/second), Total elapsed time(s), Average "
+//                                                      + "latency "
+//                                                      +
+//                                                      "per event (ms), Entire Average latency per event (ms), Total "
+//                                                      + "number"
+//                                                      + " of "
+//                                                      +
+//                                                      "events received (non-atomic)");
+//                                fstream.write("\r\n");
+//                            }
+//
+//                            System.out.print(".");
+//                            fstream.write(
+//                                    (eventCountTotal / RECORD_WINDOW) + "," + ((eventCount * 1000) / value) + "," +
+//                                            ((eventCountTotal * 1000) / (currentTime - veryFirstTime)) + "," +
+//                                            ((currentTime - veryFirstTime) / 1000f) + "," + (timeSpent * 1.0
+//                                            / eventCount) +
+//                                            "," + ((totalTimeSpent * 1.0) / eventCountTotal) + "," + eventCountTotal);
+//                            fstream.write("\r\n");
+//                            fstream.flush();
+//                            startTime = System.currentTimeMillis();
+//                            eventCount = 0;
+//                            timeSpent = 0;
+//                        }
+//                    } catch (Exception e) {
+//                        log.error("Error while consuming event on incrementStream2, " + e.getMessage(), e);
+//                    }
+//                }
+//            }
+//        });
 
 
         while (true) {

@@ -53,9 +53,14 @@
             <artifactId>joda-time</artifactId>
             <version>2.8</version>
         </dependency>
+        <dependency>
+            <groupId>org.apache.kafka</groupId>
+            <artifactId>kafka-clients</artifactId>
+            <version>1.0.0</version>
+        </dependency>
     </dependencies>
     <properties>
-        <siddhi.version>3.1.0</siddhi.version>
+        <siddhi.version>4.1.38</siddhi.version>
         <maven.shadeplugin.version>2.4.1</maven.shadeplugin.version>
         <mavan.findbugsplugin.exclude.file>findbugs-exclude.xml</mavan.findbugsplugin.exclude.file>
         <mavan.checkstyle.suppression.file>checkstyle-suppressions.xml</mavan.checkstyle.suppression.file>
