@@ -1,5 +1,5 @@
 @App:name("CountMaliciousLogins")
-@App:description("HTTP Log Processor Benchmark for WSO2 Stream Processor 4.x.x")
+@App:description("HTTP Log Processor Benchmark for WSO2 Stream Processor 4.x.x-Count Maliciuos Logins")
 
 
 @source(type = 'kafka', partition.no.list='0', threading.option='single.thread', group.id="group", bootstrap.servers=' localhost:9092', topic.list = 'test2',
