@@ -1,41 +1,47 @@
 @App:name("CountMaliciousLogins")
 @App:description("HTTP Log Processor Benchmark for WSO2 Stream Processor 4.x.x-Count Maliciuos Logins")
 
-
 @source(type = 'kafka', partition.no.list='0', threading.option='single.thread', group.id="group", bootstrap.servers='kafka-service:9092', topic.list = 'test15',
          @map(type = 'json'))
 
+define stream inputStream ( iij_timestamp long, ip string, timestamp long, zone float, cik double, accession string, doc string, code float, size double, idx float, norefer float, noagent float, find float, crawler float, groupID int, browser string);
 
-define stream inputStream ( iij_timestamp long, ip string, timestamp long, zone float, cik double, accession string, doc string, code float, size double, idx float, norefer float, noagent float, find float, crawler float, browser string);
+--Output of query 19
+@sink(type='log')
+define stream interimInputStream2(groupID int);
 
 
 --Output of query 3: I want to know the IP of the malicious hosts which tries to make unauthorized login attempts within 1 minute intervals.
 @sink(type='log')
-define stream outputStreamBotAlert(ip string, injected_iijtimestamp long, iij_timestamp long);
+define stream outputStreamBotAlert(ip string ,groupID int);
 
---The Actual latency of parallel siddhi apps are gtting started to measure
-@info(name = "Query1")
-@dist(execGroup='group1' ,parallel ='6')
+--The Actual latency of parallel siddhi apps are gtting started to measure at this point
+@info(name = "Query11")
+@dist(execGroup='group11' ,parallel ='1')
 from inputStream
-select iij_timestamp, ip, timestamp, zone, cik, accession, doc, code, size, idx, norefer, noagent, find, crawler, browser, convert(time:timestampInMilliseconds(),'long') as injected_iijtimestamp
+select iij_timestamp, ip, timestamp, zone, cik, accession, doc, code, size, idx, norefer, noagent, find, crawler, groupID, browser, convert(time:timestampInMilliseconds(),'long') as injected_iijtimestamp
 insert into interimInputStream;
 
---Query 3: Here all the accesses are either 401 or 403 and they have been done at least 30 times within 1 minute time period.
+@info(name = "Query19")
+@dist(execGroup='group11' ,parallel ='1')
+from inputStream
+select groupID
+insert into interimInputStream2;
+
+--Query 3: Here all the accesses are either 401 or 403 and they have been done atleat 30 times within 1 minute time period.
 @info(name = "Query3")
 @dist(execGroup='group3' ,parallel ='6')
-from interimInputStream#window.externalTimeBatch(timestamp, 1 min)
-select  ip, count() as totalAccessCount, sum(ifThenElse(code == 401F, 1, 0)) as unauthorizedCount, sum(ifThenElse(code == 403F, 1, 0)) as forbiddenCount, injected_iijtimestamp ,iij_timestamp
-insert into interimStream3;
+partition with (groupID of interimInputStream)
+begin
+    from interimInputStream#window.externalTimeBatch(timestamp, 1 min)
+    select  ip, count() as totalAccessCount, sum(ifThenElse(code == 401F, 1, 0)) as unauthorizedCount, sum(ifThenElse(code == 403F, 1, 0)) as forbiddenCount,injected_iijtimestamp as iijtimestamp,groupID
+    insert into #interimStream3;
 
-@info(name = "Query31")
-@dist(execGroup='group3' ,parallel ='6')
-from interimStream3 select ip, totalAccessCount, (unauthorizedCount + forbiddenCount)/totalAccessCount as accessPercentage, injected_iijtimestamp ,iij_timestamp
-insert into interimStream5;
+    from #interimStream3#throughput:throughput(iijtimestamp,"throughput",3,6,"outputStreamBotAlert",30)
+    select ip, totalAccessCount, (unauthorizedCount + forbiddenCount)/totalAccessCount as accessPercentage ,groupID
+    insert into #interimStream5;
 
-@info(name = "Query32")
-@dist(execGroup='group3' ,parallel ='6')
-from interimStream5 [totalAccessCount > 30L and accessPercentage == 1.0]#throughput:throughput(injected_iijtimestamp,"throughput",4,1,"outputStreamDocumentList",120)
-select ip, injected_iijtimestamp, iij_timestamp
-insert into outputStreamBotAlert;
-
-
+    from #interimStream5 [totalAccessCount > 30L and accessPercentage == 1.0]
+    select ip ,groupID
+    insert into outputStreamBotAlert;
+end;
