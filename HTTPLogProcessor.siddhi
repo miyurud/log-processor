@@ -1,41 +1,53 @@
 @App:name("HTTPLogProcessor")
-@App:description("HTTP Log Processor benchmark for WSO2 Stream Processor 4.x.x")
+@App:description("HTTP Log Processor Benchmark for WSO2 Stream Processor 4.x.x")
 
-@source(type = 'kafka', partition.no.list='0', threading.option='single.thread', group.id="group", bootstrap.servers='localhost:9092', topic.list = 'test',
-             @dist(parallel ='3'),
-	            @map(type = 'json'))
-define stream inputStream ( iij_timestamp long, ip string, timestamp long, zone float, cik double, accession string, doc string, code float, size double, idx float, norefer float, noagent float, find float, crawler float, browser string);
+
+@source(type = 'kafka', partition.no.list='0', threading.option='single.thread', group.id="group", bootstrap.servers=' localhost:9092', topic.list = 'test2',
+        @map(type = 'json'))
+
+
+define stream inputStream ( iij_timestamp long, ip string, timestamp long, zone float, cik double, accession string, doc string, code float, size double, idx float, norefer float, noagent float, find float, crawler float, browser string, groupID int);
 
 --Output of Query 1: I want to know what is the most popular browser for accessing the EDGAR data in periods of 10 minutes.
 @sink(type='log')
-define stream outputStreamBrowserStats(browser string, itemCount long);
+define stream outputStreamBrowserStats(browser string, itemCount long, injected_iijtimestamp long, iij_timestamp long);
 
 --Output of query 2: I want to know which IPs have downloaded more than 100MB of the data during the last one hour time period.
 @sink(type='log')
-define stream outputStreamDataDownloadStatsAlert(timestamp long, ip string, dataSize double);
+define stream outputStreamDataDownloadStatsAlert(timestamp long, ip string, dataSize double, injected_iijtimestamp long, iij_timestamp long);
 
 --Output of query 3: I want to know the IP of the malicious hosts which tries to make unauthorized login attempts within 1 minute intervals.
 @sink(type='log')
-define stream outputStreamBotAlert(ip string);
+define stream outputStreamBotAlert(ip string, injected_iijtimestamp long, iij_timestamp long);
 
 --Output of query 4: I want to know what are the top 10 mostly sought documents for each one hour time period.
 @sink(type='log')
-define stream outputStreamDocumentList(timestamp long, doc string, docCount long);
+define stream outputStreamDocumentList(timestamp long, doc string, docCount long, injected_iijtimestamp long, iij_timestamp long);
+
+
+from inputStream
+select iij_timestamp, ip, timestamp, zone, cik, accession, doc, code, size, idx, norefer, noagent, find, crawler, browser, convert(time:timestampInMilliseconds(),'long') as injected_iijtimestamp, groupID
+insert into interimInputStream;
+
 
 --Filter
-from inputStream [crawler != 1 and browser != '']
-select iij_timestamp, ip, timestamp, zone, cik, accession, doc, code, size, idx, norefer, noagent, find, crawler, browser
+from interimInputStream [crawler != 1 and browser != '']
+select iij_timestamp, ip, timestamp, zone, cik, accession, doc, code, size, idx, norefer, noagent, find, crawler, browser, injected_iijtimestamp, groupID
 insert into filteredBrowserStream;
 
 --Query 1
 @info(name = "Query1")
 @dist(execGroup='group1' ,parallel ='4')
-partition with (browser of filteredBrowserStream)
+partition with (groupID of filteredBrowserStream)
 begin
     @info(name="aggregation")
     from filteredBrowserStream#window.externalTimeBatch(timestamp, 10 min)
-    select browser, count(iij_timestamp) as itemCount
-    insert into outputStreamBrowserStats
+    select browser, count(iij_timestamp) as itemCount, injected_iijtimestamp, iij_timestamp
+    insert into tempStream;
+
+    from tempStream#throughput:throughput(injected_iijtimestamp,"throughput")
+    select *
+    insert into outputStreamBrowserStats;
 end;
 
 --Query 2
@@ -43,41 +55,51 @@ end;
 --Below 1048576 is taken by 1024x1024.
 @info(name = "Query2")
 @dist(execGroup='group2' ,parallel ='4')
-partition with (ip of filteredBrowserStream)
+partition with (groupID of filteredBrowserStream)
 begin
     from filteredBrowserStream#window.externalTimeBatch(timestamp, 1 hour)
-    select timestamp, ip, sum(size)/1048576 as dataSize
+    select timestamp, ip, sum(size)/1048576 as dataSize,  injected_iijtimestamp ,iij_timestamp
     insert into interimStream2;
 
-    --If the browser has downloaded more than 100MB during last hour we issue a Download Stats Alert
+    --If the browser has downloaded more than 100MB during last hour we issue a download status alert
     from interimStream2 [dataSize > 100F]
-    select timestamp, ip, dataSize
+    select timestamp, ip, dataSize, injected_iijtimestamp ,iij_timestamp
+    insert into tempStream2;
+
+    from tempStream2#throughput:throughput(injected_iijtimestamp,"throughput")
+    select *
     insert into outputStreamDataDownloadStatsAlert;
 end;
 
---Query 3: Here all the accesses are either 401 or 403 and they have been done atleat 30 times within 1 minute time period.
+
+--Query 3: Here all the accesses are either 401 or 403 and they have been done at least 30 times within 1 minute time period.
 @info(name = "Query3")
 @dist(execGroup='group3' ,parallel ='4')
-partition with (ip of inputStream)
+partition with (groupID of inputStream)
 begin
-    from inputStream#window.externalTimeBatch(timestamp, 1 min)
-    select  ip, count() as totalAccessCount, sum(ifThenElse(code == 401F, 1, 0)) as unauthorizedCount, sum(ifThenElse(code == 403F, 1, 0)) as forbiddenCount
+    from interimInputStream#window.externalTimeBatch(timestamp, 1 min)
+    select  ip, count() as totalAccessCount, sum(ifThenElse(code == 401F, 1, 0)) as unauthorizedCount, sum(ifThenElse(code == 403F, 1, 0)) as forbiddenCount, injected_iijtimestamp ,iij_timestamp
     insert into interimStream3;
 
-    from interimStream3 select ip, totalAccessCount, (unauthorizedCount + forbiddenCount)/totalAccessCount as accessPercentage
+    from interimStream3 select ip, totalAccessCount, (unauthorizedCount + forbiddenCount)/totalAccessCount as accessPercentage, injected_iijtimestamp ,iij_timestamp
     insert into interimStream5;
 
-    from interimStream5 [totalAccessCount > 30L and accessPercentage == 1.0]
-    select ip
+    from interimStream5 [totalAccessCount > 30L and accessPercentage == 1.0]#throughput:throughput(injected_iijtimestamp,"throughput")
+    select ip, injected_iijtimestamp, iij_timestamp
     insert into outputStreamBotAlert;
 end;
 
 --Query 4: Top 10 mostly sought documents for each one hour time period.
 @info(name = "Query4")
 @dist(execGroup='group4' ,parallel ='1')
-from inputStream#window.externalTimeBatch(timestamp, 1 hour)
-select timestamp, doc, count(doc) as docCount
+
+from interimInputStream#window.externalTimeBatch(timestamp, 1 hour)
+select timestamp, doc, count(doc) as docCount, injected_iijtimestamp, iij_timestamp
 group by doc
 order by docCount desc
 limit 10
-insert into outputStreamDocumentList
+insert into tempStream3;
+
+from tempStream3#throughput:throughput( injected_iijtimestamp,"throughput")
+select *
+insert into outputStreamDocumentList;
