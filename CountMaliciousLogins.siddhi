@@ -38,7 +38,7 @@ begin
     insert into #interimStream3;
 
     from #interimStream3#throughput:throughput(iijtimestamp,"throughput",3,6,"outputStreamBotAlert",30)
-    select ip, totalAccessCount, (unauthorizedCount + forbiddenCount)/totalAccessCount as accessPercentage ,groupID
+    select ip, totalAccessCount, (unauthorizedCount + forbiddenCount)/totalAccessCount as accessRatio ,groupID
     insert into #interimStream5;
 
     from #interimStream5 [totalAccessCount > 30L and accessPercentage == 1.0]

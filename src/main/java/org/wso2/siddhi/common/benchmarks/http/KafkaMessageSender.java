@@ -12,8 +12,9 @@ import java.util.Properties;
  * The class for sending messages to Kafka.
  */
 public class KafkaMessageSender {
-    private static final String BOOTSTRAP_SERVERS = "localhost:9092";
-    private static final String TOPIC = "test";
+
+    private static final String BOOTSTRAP_SERVERS = "kafka-service:9092";
+    private static final String TOPIC = "test15";
     private static final Logger log = Logger.getLogger(KafkaMessageSender.class);
 
     public static Producer<String, String> createProducer() {
@@ -35,7 +36,7 @@ public class KafkaMessageSender {
 
         try {
             producer.send(record, null);
-            log.info("Message sent to kafka topic of " + TOPIC);
+            //log.info("Message sent to kafka topic of " + TOPIC);
         } finally {
             producer.flush();
             producer.close();
