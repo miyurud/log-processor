@@ -17,23 +17,20 @@
  */
 
 package org.wso2.siddhi.common.benchmarks.http;
-
 import com.google.common.base.Splitter;
 import org.apache.log4j.BasicConfigurator;
 import org.apache.log4j.Logger;
-import org.joda.time.format.ISODateTimeFormat;
 import org.wso2.siddhi.core.stream.input.InputHandler;
-
 import java.io.BufferedReader;
+import java.io.BufferedWriter;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
-
 import java.util.ArrayList;
 import java.util.Iterator;
-
 import java.util.Locale;
 import java.util.ResourceBundle;
 import java.util.concurrent.locks.ReentrantLock;
@@ -51,7 +48,9 @@ public class JSONDataLoader extends Thread {
     long startTime2;
     private int temp = 0;
     JSONDataLoader jsLoader = null;
-    static ReentrantLock lock = new ReentrantLock();
+    int i = 0;
+
+    Long timestamp = 1000000000000L;
 
     private static final Logger log = Logger.getLogger(JSONDataLoader.class);
 
@@ -61,27 +60,10 @@ public class JSONDataLoader extends Thread {
 
         log.info("Welcome to kafka message sender");
 
-
         JSONDataLoader loader1 = new JSONDataLoader();
         JSONDataLoader loader2 = new JSONDataLoader(loader1);
-        JSONDataLoader loader3 = new JSONDataLoader(loader1);
-        JSONDataLoader loader4 = new JSONDataLoader(loader1);
-        JSONDataLoader loader5 = new JSONDataLoader(loader1);
-        JSONDataLoader loader6 = new JSONDataLoader(loader1);
-        JSONDataLoader loader7 = new JSONDataLoader(loader1);
-        JSONDataLoader loader8 = new JSONDataLoader(loader1);
 
-        loader1.start();
         loader2.start();
-        loader3.start();
-        loader4.start();
-        loader5.start();
-        loader6.start();
-        loader7.start();
-        loader8.start();
-
-
-
     }
 
     public JSONDataLoader() {
@@ -92,44 +74,34 @@ public class JSONDataLoader extends Thread {
         jsLoader = js;
     }
 
-    public void incrementCommon() {
+    public void dataRate() {
         jsLoader.temp++;
-
             if (jsLoader.temp == 1) {
                 jsLoader.startTime2 = System.currentTimeMillis();
             }
             long diff = System.currentTimeMillis() - jsLoader.startTime2;
+            jsLoader.timestamp = jsLoader.timestamp + 7000000;
+            if (jsLoader.i == 11) {
+               jsLoader.i = -1;
+            }
+            jsLoader.i++;
+            log.info("Timestamp is : " + jsLoader.timestamp +
+                    " using " + Thread.currentThread().getName());
+            long datarate = (jsLoader.temp * 1000  / diff);
+
             log.info(Thread.currentThread().getName() + " spent : "
                     + diff + " for the event count : " + jsLoader.temp
-                    + " with the  Data rate : " + (jsLoader.temp * 1000  / diff));
+                    + " with the  Data rate : " + datarate);
     }
+
+
 
     public JSONDataLoader(InputHandler inputHandler) {
         super("Data Loader");
         this.inputHandler = inputHandler;
     }
-
-
-
     public void run() {
         BufferedReader br = null;
-
-        ArrayList<Integer> list = new ArrayList<Integer>();
-
-        list.add(0);
-        list.add(1);
-        list.add(2);
-        list.add(3);
-        list.add(4);
-        list.add(5);
-        list.add(6);
-        list.add(7);
-        list.add(8);
-        list.add(9);
-        list.add(13);
-        list.add(14);
-
-
 
         try {
             Locale locale = new Locale("en", "US");
@@ -140,12 +112,15 @@ public class JSONDataLoader extends Thread {
                     Charset.forName("UTF-8")));
             String line = br.readLine();
             line = br.readLine(); //We need to ignore the first line which has the headers.
-
             startTime = System.currentTimeMillis();
-
-            int i = 1;
             while (line != null) {
-                events++;
+                try {
+                    log.info(Thread.currentThread().getName() + " is  sleeping");
+                    Thread.currentThread().sleep(100);
+
+                } catch (InterruptedException e) {
+                    log.info("Error: " + e.getMessage());
+                }
 
 
                 //We make an assumption here that we do not get empty strings due to missing values that may present
@@ -185,12 +160,6 @@ public class JSONDataLoader extends Thread {
                 // the user agent field contained the following /[text]/
                 //browser = browser.equals("") ? "-":browser;
 
-                long timestamp = ISODateTimeFormat.dateTime().parseDateTime(date + "T" + time + ".000+0000")
-                        .getMillis();
-
-                log.info("Current time of " + Thread.currentThread().getName()
-                        + " is " + System.currentTimeMillis());
-
                 StringBuilder jsonDataItem = new StringBuilder();
                 jsonDataItem.append("{ \"event\": { ");
                 jsonDataItem.append("\"iij_timestamp\"");
@@ -203,9 +172,10 @@ public class JSONDataLoader extends Thread {
                 jsonDataItem.append(ipAddress);
                 jsonDataItem.append("\",");
 
+
                 jsonDataItem.append("\"timestamp\"");
                 jsonDataItem.append(":");
-                jsonDataItem.append(timestamp);
+                jsonDataItem.append(jsLoader.timestamp);
                 jsonDataItem.append(",");
 
                 jsonDataItem.append("\"zone\"");
@@ -264,18 +234,6 @@ public class JSONDataLoader extends Thread {
                 jsonDataItem.append(",");
 
 
-                jsonDataItem.append("\"groupID\"");
-                jsonDataItem.append(":");
-                jsonDataItem.append(list.get(i));
-                jsonDataItem.append(",");
-
-
-                if (i == 11) {
-                    i = -1;
-                }
-                i++;
-
-
                 jsonDataItem.append("\"browser\"");
                 jsonDataItem.append(":\"");
                 jsonDataItem.append(browser);
@@ -283,19 +241,7 @@ public class JSONDataLoader extends Thread {
 
                 try {
                     KafkaMessageSender.runProducer(jsonDataItem.toString());
-                    log.info("Message sent to kafaka by "
-                            + Thread.currentThread().getName());
-
-                    incrementCommon();
-
-
-
-                    try {
-                        Thread.currentThread().sleep(100);
-                    } catch (InterruptedException e) {
-                        log.info("Error: " + e.getMessage());
-                    }
-
+                    dataRate();
                 } catch (InterruptedException e) {
                     log.error("Error sending an event to Input Handler, " + e.getMessage(), e);
                 } catch (Exception e) {
