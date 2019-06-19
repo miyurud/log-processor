@@ -24,6 +24,9 @@ define stream outputStreamBotAlert(ip string, injected_iijtimestamp long, iij_ti
 @sink(type='log')
 define stream outputStreamDocumentList(timestamp long, doc string, docCount long, injected_iijtimestamp long, iij_timestamp long);
 
+--Output of query 5: I want to know which IP addresses and which time slots does workload spikes occur. This will allow me to plan for such frequent workload patterns in advance.
+@sink(type='log')
+define stream outputStreamWorkloadSpikes(ip1 string, timestamp1 long, ip2 string, timestamp2 long);
 
 from inputStream
 select iij_timestamp, ip, timestamp, zone, cik, accession, doc, code, size, idx, norefer, noagent, find, crawler, browser, convert(time:timestampInMilliseconds(),'long') as injected_iijtimestamp, groupID
@@ -103,3 +106,9 @@ insert into tempStream3;
 from tempStream3#throughput:throughput( injected_iijtimestamp,"throughput")
 select *
 insert into outputStreamDocumentList;
+
+--Query 5: Detect workload spike patterns and report
+from every (e1=inputStream) -> e2=inputStream[(e2.size - e1.size) > 100 or ((e2.size - e1.size) < 100 and e2.size > 12000 and e1.size > 12000)] within 10 min select e1.ip, e1.time, e2.ip, e2.time insert into outputStreamWorkloadSpikes;
+
+
+
